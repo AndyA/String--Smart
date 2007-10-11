@@ -14,13 +14,13 @@ String::Smart - Strings that know how to escape themselves.
 
 =head1 VERSION
 
-This document describes String::Smart version 0.2
+This document describes String::Smart version 0.3
 
 =cut
 
 use vars qw( $VERSION @ISA @EXPORT_OK %EXPORT_TAGS );
 
-$VERSION     = '0.2';
+$VERSION     = '0.3';
 @ISA         = qw( Exporter );
 @EXPORT_OK   = qw( already as add_rep literal plain rep str_val );
 %EXPORT_TAGS = ( all => \@EXPORT_OK );
@@ -306,6 +306,16 @@ L<http://rt.cpan.org>.
 =head1 AUTHOR
 
 Andy Armstrong  C<< <andy@hexten.net> >>
+
+=head2 Inspiration
+
+Inspired in part by http://xkcd.com/327/
+
+=for html <img src="http://imgs.xkcd.com/comics/exploits_of_a_mom.png"
+    title="Her daughter is named Help I'm trapped in a driver's license factory." 
+    alt="Exploits of a Mom" />
+
+Thanks Rich for the lead!
 
 =head1 LICENCE AND COPYRIGHT
 
