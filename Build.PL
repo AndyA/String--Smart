@@ -8,8 +8,8 @@ my $builder = Module::Build->new(
     dist_author       => 'Andy Armstrong <andy@hexten.net>',
     dist_version_from => 'lib/String/Smart.pm',
     requires          => {
-        'Test::More' => 0,
-        'version'    => 0,
+        'Test::More'   => 0,
+        'Scalar::Util' => 0,
     },
     add_to_cleanup => ['String-Smart-*'],
 );
