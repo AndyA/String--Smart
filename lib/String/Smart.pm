@@ -3,56 +3,285 @@ package String::Smart;
 use warnings;
 use strict;
 use Carp;
+use Exporter;
+use Scalar::Util qw( blessed );
 
-use version; our $VERSION = qv( '0.1' );
-
-sub new {
-    my $class = shift;
-    my $self = bless {}, $class;
-    $self->_initialize( @_ );
-    return $self;
-}
-
-sub _initialize {
-    my $self = shift;
-}
-
-1;
-__END__
+use overload '""' => \&str_val;
 
 =head1 NAME
 
-String::Smart - [One line description of module's purpose here]
+String::Smart - Strings that know how to escape themselves.
 
 =head1 VERSION
 
 This document describes String::Smart version 0.1
 
+=cut
+
+use vars qw( $VERSION @ISA @EXPORT_OK %EXPORT_TAGS );
+
+$VERSION     = '0.1';
+@ISA         = qw( Exporter );
+@EXPORT_OK   = qw( already as add_rep literal plain rep str_val );
+%EXPORT_TAGS = ( all => \@EXPORT_OK );
+
+my %rep_map = ();
+
 =head1 SYNOPSIS
 
     use String::Smart;
-  
+    my $plain =            "<This is plain text>";
+    my $html  = as html => "<p>&lt;This is HTML&gt;</p>";
+    
+    print as html => $plain, as html => $html;
+    # Prints "&lt;This is plain text&gt;<p>&lt;This is HTML&gt;</p>"
+
+    print plain $html;
+    # Croaks: "Can't decode markup"
+
 =head1 DESCRIPTION
+
+String::Smart implements overloaded string values that know how they are
+currently encoded or escaped and are capapable of transforming
+themselves into other encodings.
+
+In many applications it is necessary to apply various escaping rules to
+strings before they can safely be used. For example when building a SQL
+query string literals must be escaped to avoid SQL injection
+vulnerabilities.
+
+Typically this is achieved by SQL escaping all strings that are passed
+to the query builder. But what if you pass a string that has already
+been SQL escaped? Or a string that is URL encoded? If you wish to pass a
+mixture of already-encoded strings and plain string literals you have to
+arrange some out of band means of communicating the encoding state of
+each string.
+
+With C<String::Smart> you simply make the query building routine
+ask for SQL escaped strings and behind the scenes the appropriate
+transformations will be applied to each string based on it's
+current encoding.
+
+For example:
+
+    my $uri_enc = already uri => 'Spaces+are+evil';
+    my $sql_enc = already sql => "\\'Quotes are backslashed\\'";
+    my $not_enc =                "Just some literal punctuation: %'+";
+
+    print literal sql => $uri_enc;
+    # removes URI encoding
+    # applies SQL encoding
+    # prints
+    #   Spaces are evil
+
+    print literal sql => $sql_enc;
+    # already sql encoded
+    # prints
+    #   \'Quotes are backslashed\'
+
+    print literal sql => $not_enc;
+    # applies SQL encoding
+    # prints
+    #   Just some literal punctuation: %\'+
+
+The important point is that the requested encoding is absolute rather
+than relative. A C<String::Smart> knows how it is currently encoded and
+can work out how to re-encode itself in the requested way.
+
+=head2 A note on the examples
+
+Throughout the documentation I assume that various encoding
+representations (C<sql>, C<html>, C<uri>) have already been defined.
+These are not defined by C<String::Smart> and must be set up by calling
+C<add_rep> with the appropriate conversion subroutines before the
+examples will run.
 
 =head1 INTERFACE 
 
-=over
+=head2 C<< add_rep >>
 
-=item C<< new >>
+Add an encoding representation. The namespace for encodings is global.
+This may turn out to be a problem - and may therefore change.
 
-Create a new C<< String::Smart >>.
+    add_rep reversed => sub { reverse $_[0] }, sub { reverse $_[0] };
+    my $this = "Hello";
+    my $that = reversed "Hello";
+    print as reversed => $this, "\n";
+    # prints "olleH"
+    print as reversed => $that, "\n";
+    # also prints "olleH"
 
-=back
+A representation consists of a name and two subroutine references. The
+first subroutine applies the encoding, the second reverses it. If either
+subroutine is undefined a boilerplate subroutine that throws a
+descriptive error will be used in its place.
 
-=head1 DIAGNOSTICS
+=cut
 
-=over
+sub add_rep($$$) {
+    my ( $name, $to, $from ) = @_;
 
-=item C<< Error message here, perhaps with %s placeholders >>
+    croak "$name contains an underscore"
+      if $name =~ /_/;
 
-[Description of error here]
+    my %spec = ( from => $from, to => $to );
+    for my $dir ( keys %spec ) {
+        unless ( defined $spec{$dir} ) {
+            $spec{$dir} = sub {
+                croak "Don't know how to convert $dir $name";
+            };
+        }
+    }
 
-=back
+    $rep_map{$name} = \%spec;
+}
+
+=head2 C<< as >>
+
+Coerce a string into the specified encoding.
+
+    my $representation = as html => $some_string;
+
+Optionally multiple encodings my be supplied either like this:
+
+    my $rep = as html_nl2br => $some_string;
+
+Or like this:
+
+    my $rep = as ['html', 'nl2br'], $some_string;
+
+The returned object (actually a hash blessed to C<String::Smart>)
+will have the specified encoding irrespective of it's current
+encoding. For example the sequence:
+
+    my $html1 = as html => $some_string;
+    my $html2 = as html => $html1;
+
+Does I<not> result in double encoding. The encodings you request are
+'absolute'. A path of transformations that will convert the string from
+whatever its current encoding is will be computed and applied.
+
+=cut
+
+sub as($$) {
+    my ( $desired, $str ) = @_;
+
+    my @desired
+      = map { split /_/ } 'ARRAY' eq ref $desired ? @$desired : $desired;
+
+    unless ( blessed $str && $str->isa( __PACKAGE__ ) ) {
+        $str = bless { val => $str, rep => [] };
+    }
+
+    my @got_rep  = $str->rep;
+    my @want_rep = @desired;
+
+    # Prune common reps
+    while ( @got_rep && @want_rep && $got_rep[0] eq $want_rep[0] ) {
+        shift @got_rep;
+        shift @want_rep;
+    }
+
+    $str = $str->{val};
+
+    for my $spec ( [ 'from', reverse @got_rep ], [ 'to', @want_rep ] ) {
+        my $dir = shift @$spec;
+        for my $rep ( @$spec ) {
+            my $handler = $rep_map{$rep} || croak "Don't know about $rep";
+            $str = $handler->{$dir}->( $str );
+        }
+    }
+
+    return bless {
+        val => $str,
+        rep => \@desired,
+    };
+}
+
+=head2 C<< already >>
+
+Declare that a string is already encoded in a particular way. For example:
+
+    my $html = already html => '<p>This is a paragraph</p>';
+    my $text =                 'This is just << some text >>';
+    
+    print literal html => $html;
+    # already HTML encoded
+    # prints
+    #    <p>This is a paragraph</p>
+    
+    print literal html => $text;
+    # applies HTML encoding
+    # prints
+    #   This is just &lt;&lt; some text &gt;&gt;
+
+=cut
+
+sub already($$) {
+    return bless {
+        val => $_[1],
+        rep => [ map { split /_/ } 'ARRAY' eq ref $_[0] ? @$_[0] : $_[0] ]
+    };
+}
+
+=head2 C<< literal >>
+
+Convert a string to the specified encoding and return it as a normal string.
+
+=cut
+
+sub literal($$) { as( $_[0], $_[1] )->{val} }
+
+=head2 C<< plain >>
+
+Remove any encoding from a string.
+
+    my $uri_enc = already uri => 'Spaces+are+evil%21';
+    print plain $uri_enc;
+    # prints
+    #    Spaces are evil!
+
+=cut
+
+sub plain($) { literal( [], $_[0] ) }
+
+=head2 C<< str_val >>
+
+Get the string representation of a C<String::Smart>. No encoding
+coercion takes place; C<str_val> returns a string encoded according to
+the current encodings.
+
+=cut
+
+sub str_val($) {
+    my $str = $_[0];
+    blessed $str && $str->isa( __PACKAGE__ ) ? $str->{val} : $str;
+}
+
+=head2 C<< rep >>
+
+Return a list of encodings that currently applies to the specfied
+string.
+
+    my $text = 'Just text';
+    my @trep = rep $text;   # @trep gets ()
+    
+    my $html = already html => '<p>Boo!</p>';
+    my @hrep = rep $html;   # @hrep gets ( 'html' )
+
+=cut
+
+sub rep {
+    my $str = $_[0];
+    if ( blessed $str && $str->isa( __PACKAGE__ ) ) {
+        my @r = @{ $str->{rep} };
+        return wantarray ? @r : join '_', @r;
+    }
+    return;
+}
+
+1;
+__END__
 
 =head1 CONFIGURATION AND ENVIRONMENT
   
