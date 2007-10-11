@@ -59,7 +59,7 @@ each string.
 
 With C<String::Smart> you simply make the query building routine
 ask for SQL escaped strings and behind the scenes the appropriate
-transformations will be applied to each string based on it's
+transformations will be applied to each string based on its
 current encoding.
 
 For example:
