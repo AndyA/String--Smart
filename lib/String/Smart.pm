@@ -42,8 +42,8 @@ my %rep_map = ();
 =head1 DESCRIPTION
 
 String::Smart implements overloaded string values that know how they are
-currently encoded or escaped and are capapable of transforming
-themselves into other encodings.
+currently encoded or escaped and are capable of transforming themselves
+into other encodings.
 
 In many applications it is necessary to apply various escaping rules to
 strings before they can safely be used. For example when building a SQL
