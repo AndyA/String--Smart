@@ -226,7 +226,8 @@ sub already($$) {
 
 =head2 C<< literal >>
 
-Convert a string to the specified encoding and return it as a normal string.
+Convert a string to the specified encoding and return it as a normal
+unblessed string.
 
 =cut
 
@@ -316,6 +317,10 @@ Inspired in part by http://xkcd.com/327/
     alt="Exploits of a Mom" />
 
 Thanks Rich for the lead!
+
+=head1 SEE ALSO
+
+L<String::EscapeCage>
 
 =head1 LICENCE AND COPYRIGHT
 
