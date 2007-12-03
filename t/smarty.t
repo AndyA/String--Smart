@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More tests => 25;
+use Test::More tests => 26;
 use String::Smart qw( :all );
 
 # Set up some simple encodings
@@ -52,9 +52,14 @@ add_rep fromonly => undef, sub { '!' . shift() };
     # A different route
     my $dbang = as double_toonly => $cba2b;
     is "$dbang", 'abcabc!', 'complex path';
-    is_deeply [ rep $dbang], [ 'double', 'toonly' ], 'rep for cba is reversed';
+    is_deeply [ rep $dbang], [ 'double', 'toonly' ],
+      'rep for cba is reversed';
     my $rep = rep $dbang;
     is $rep, 'double_toonly', 'rep for cba is reversed';
+
+    # Double already
+    my $splod = already [ 'double', 'reversed' ], 'cbacba';
+    is plain $splod, 'abc', 'already stacked undone';
 
 }
 

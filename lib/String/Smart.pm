@@ -5,8 +5,11 @@ use strict;
 use Carp;
 use Exporter;
 use Scalar::Util qw( blessed );
+use ambient ();
 
-use overload '""' => \&str_val;
+use overload
+  '""' => \&str_val,
+  '.'  => \&_str_cat;
 
 =head1 NAME
 
@@ -166,8 +169,8 @@ whatever its current encoding is will be computed and applied.
 sub as($$) {
     my ( $desired, $str ) = @_;
 
-    my @desired
-      = map { split /_/ } 'ARRAY' eq ref $desired ? @$desired : $desired;
+    my @desired = map { split /_/ }
+      'ARRAY' eq ref $desired ? @$desired : $desired;
 
     unless ( blessed $str && $str->isa( __PACKAGE__ ) ) {
         $str = bless { val => $str, rep => [] };
@@ -187,7 +190,8 @@ sub as($$) {
     for my $spec ( [ 'from', reverse @got_rep ], [ 'to', @want_rep ] ) {
         my $dir = shift @$spec;
         for my $rep ( @$spec ) {
-            my $handler = $rep_map{$rep} || croak "Don't know about $rep";
+            my $handler = $rep_map{$rep}
+              || croak "Don't know about $rep";
             $str = $handler->{$dir}->( $str );
         }
     }
@@ -220,7 +224,9 @@ Declare that a string is already encoded in a particular way. For example:
 sub already($$) {
     return bless {
         val => $_[1],
-        rep => [ map { split /_/ } 'ARRAY' eq ref $_[0] ? @$_[0] : $_[0] ]
+        rep => [
+            map { split /_/ } 'ARRAY' eq ref $_[0] ? @{ $_[0] } : $_[0]
+        ]
     };
 }
 
@@ -257,6 +263,19 @@ the current encodings.
 sub str_val($) {
     my $str = $_[0];
     blessed $str && $str->isa( __PACKAGE__ ) ? $str->{val} : $str;
+}
+
+sub _str_cat {
+    my ( $this, $that, $rev ) = @_;
+
+    # use Data::Dumper;
+    # warn "# ", Dumper( \@_ ), "\n";
+
+    return _str_cat( $that, $this ) if $rev;
+
+    my @rep = rep( $this );
+    return already( \@rep,
+        literal( \@rep, $this ) . literal( \@rep, $that ) );
 }
 
 =head2 C<< rep >>
