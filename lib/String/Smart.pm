@@ -5,11 +5,8 @@ use strict;
 use Carp;
 use Exporter;
 use Scalar::Util qw( blessed );
-use ambient ();
 
-use overload
-  '""' => \&str_val,
-  '.'  => \&_str_cat;
+use overload '""' => \&str_val;
 
 =head1 NAME
 
@@ -122,21 +119,21 @@ descriptive error will be used in its place.
 =cut
 
 sub add_rep($$$) {
-    my ( $name, $to, $from ) = @_;
+  my ( $name, $to, $from ) = @_;
 
-    croak "$name contains an underscore"
-      if $name =~ /_/;
+  croak "$name contains an underscore"
+   if $name =~ /_/;
 
-    my %spec = ( from => $from, to => $to );
-    for my $dir ( keys %spec ) {
-        unless ( defined $spec{$dir} ) {
-            $spec{$dir} = sub {
-                croak "Don't know how to convert $dir $name";
-            };
-        }
+  my %spec = ( from => $from, to => $to );
+  for my $dir ( keys %spec ) {
+    unless ( defined $spec{$dir} ) {
+      $spec{$dir} = sub {
+        croak "Don't know how to convert $dir $name";
+      };
     }
+  }
 
-    $rep_map{$name} = \%spec;
+  $rep_map{$name} = \%spec;
 }
 
 =head2 C<< as >>
@@ -167,39 +164,38 @@ whatever its current encoding is will be computed and applied.
 =cut
 
 sub as($$) {
-    my ( $desired, $str ) = @_;
+  my ( $desired, $str ) = @_;
 
-    my @desired = map { split /_/ }
-      'ARRAY' eq ref $desired ? @$desired : $desired;
+  my @desired
+   = map { split /_/ } 'ARRAY' eq ref $desired ? @$desired : $desired;
 
-    unless ( blessed $str && $str->isa( __PACKAGE__ ) ) {
-        $str = bless { val => $str, rep => [] };
+  unless ( blessed $str && $str->isa( __PACKAGE__ ) ) {
+    $str = bless { val => $str, rep => [] };
+  }
+
+  my @got_rep  = $str->rep;
+  my @want_rep = @desired;
+
+  # Prune common reps
+  while ( @got_rep && @want_rep && $got_rep[0] eq $want_rep[0] ) {
+    shift @got_rep;
+    shift @want_rep;
+  }
+
+  $str = $str->{val};
+
+  for my $spec ( [ 'from', reverse @got_rep ], [ 'to', @want_rep ] ) {
+    my $dir = shift @$spec;
+    for my $rep ( @$spec ) {
+      my $handler = $rep_map{$rep} || croak "Don't know about $rep";
+      $str = $handler->{$dir}->( $str );
     }
+  }
 
-    my @got_rep  = $str->rep;
-    my @want_rep = @desired;
-
-    # Prune common reps
-    while ( @got_rep && @want_rep && $got_rep[0] eq $want_rep[0] ) {
-        shift @got_rep;
-        shift @want_rep;
-    }
-
-    $str = $str->{val};
-
-    for my $spec ( [ 'from', reverse @got_rep ], [ 'to', @want_rep ] ) {
-        my $dir = shift @$spec;
-        for my $rep ( @$spec ) {
-            my $handler = $rep_map{$rep}
-              || croak "Don't know about $rep";
-            $str = $handler->{$dir}->( $str );
-        }
-    }
-
-    return bless {
-        val => $str,
-        rep => \@desired,
-    };
+  return bless {
+    val => $str,
+    rep => \@desired,
+  };
 }
 
 =head2 C<< already >>
@@ -222,12 +218,10 @@ Declare that a string is already encoded in a particular way. For example:
 =cut
 
 sub already($$) {
-    return bless {
-        val => $_[1],
-        rep => [
-            map { split /_/ } 'ARRAY' eq ref $_[0] ? @{ $_[0] } : $_[0]
-        ]
-    };
+  return bless {
+    val => $_[1],
+    rep => [ map { split /_/ } 'ARRAY' eq ref $_[0] ? @$_[0] : $_[0] ]
+  };
 }
 
 =head2 C<< literal >>
@@ -261,21 +255,8 @@ the current encodings.
 =cut
 
 sub str_val($) {
-    my $str = $_[0];
-    blessed $str && $str->isa( __PACKAGE__ ) ? $str->{val} : $str;
-}
-
-sub _str_cat {
-    my ( $this, $that, $rev ) = @_;
-
-    # use Data::Dumper;
-    # warn "# ", Dumper( \@_ ), "\n";
-
-    return _str_cat( $that, $this ) if $rev;
-
-    my @rep = rep( $this );
-    return already( \@rep,
-        literal( \@rep, $this ) . literal( \@rep, $that ) );
+  my $str = $_[0];
+  blessed $str && $str->isa( __PACKAGE__ ) ? $str->{val} : $str;
 }
 
 =head2 C<< rep >>
@@ -292,12 +273,12 @@ string.
 =cut
 
 sub rep {
-    my $str = $_[0];
-    if ( blessed $str && $str->isa( __PACKAGE__ ) ) {
-        my @r = @{ $str->{rep} };
-        return wantarray ? @r : join '_', @r;
-    }
-    return;
+  my $str = $_[0];
+  if ( blessed $str && $str->isa( __PACKAGE__ ) ) {
+    my @r = @{ $str->{rep} };
+    return wantarray ? @r : join '_', @r;
+  }
+  return;
 }
 
 1;

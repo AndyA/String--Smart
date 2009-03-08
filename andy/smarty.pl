@@ -12,8 +12,8 @@ $| = 1;
 add_rep reversed => sub { reverse shift }, sub { reverse shift };
 
 add_rep
-  uri => sub { HTML::Tiny->new->url_encode( shift ) },
-  sub { HTML::Tiny->new->url_decode( shift ) };
+ uri => sub { HTML::Tiny->new->url_encode( shift ) },
+ sub { HTML::Tiny->new->url_decode( shift ) };
 
 my $backward = as reversed => "Hello, World";
 
@@ -29,7 +29,8 @@ print Dumper( { u_backward => $u_backward, u_forward => $u_forward } );
 my $ru_backward = as reversed_uri => $backward;
 my $ru_forward  = as reversed_uri => $forward;
 
-print Dumper( { ru_backward => $ru_backward, ru_forward => $ru_forward } );
+print Dumper(
+  { ru_backward => $ru_backward, ru_forward => $ru_forward } );
 
 print "$ru_backward\n$ru_forward\n";
 
