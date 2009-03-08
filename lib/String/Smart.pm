@@ -14,13 +14,13 @@ String::Smart - Strings that know how to escape themselves.
 
 =head1 VERSION
 
-This document describes String::Smart version 0.4
+This document describes String::Smart version 0.5
 
 =cut
 
 use vars qw( $VERSION @ISA @EXPORT_OK %EXPORT_TAGS );
 
-$VERSION     = '0.4';
+$VERSION     = '0.5';
 @ISA         = qw( Exporter );
 @EXPORT_OK   = qw( already as add_rep literal plain rep str_val );
 %EXPORT_TAGS = ( all => \@EXPORT_OK );
